@@ -57,6 +57,7 @@ from .dataloaders import (
     pascal_voc_detection_val,
     get_data_loader,
     get,
+    build_data_loader,
 )
 
 __all__ = [
@@ -118,4 +119,5 @@ __all__ = [
     "pascal_voc_detection_val",
     "get_data_loader",
     "get",
+    "build_data_loader",
 ]

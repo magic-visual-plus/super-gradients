@@ -47,6 +47,42 @@ import torch.distributed as dist
 
 logger = get_logger(__name__)
 
+def build_data_loader(config_name: str, dataset: object, train: bool, dataset_params: Mapping = None, dataloader_params: Mapping = None) -> DataLoader:
+    """
+    Class for creating dataloaders for taking defaults from yaml files in src/super_gradients/recipes.
+
+    :param config_name: yaml config filename of dataset_params in recipes (for example coco_detection_dataset_params).
+    :param dataset_cls: torch dataset uninitialized class.
+    :param train: controls whether to take
+        cfg.train_dataloader_params or cfg.valid_dataloader_params as defaults for the dataset constructor
+     and
+        cfg.train_dataset_params or cfg.valid_dataset_params as defaults for DataLoader contructor.
+
+    :param dataset_params: dataset params that override the yaml configured defaults, then passed to the dataset_cls.__init__.
+    :param dataloader_params: DataLoader params that override the yaml configured defaults, then passed to the DataLoader.__init__
+    :return: DataLoader
+    """
+    if dataloader_params is None:
+        dataloader_params = dict()
+    if dataset_params is None:
+        dataset_params = dict()
+
+    cfg = load_dataset_params(config_name=config_name)
+
+    dataset_params = _process_dataset_params(cfg, dataset_params, train)
+  
+    dataloader_params = _process_dataloader_params(cfg, dataloader_params, dataset, train)
+
+    # Ensure there is no dataset in dataloader_params (Could be there if the user provided dataset class name)
+    if "dataset" in dataloader_params:
+        _ = dataloader_params.pop("dataset")
+
+    dataloader = DataLoader(dataset=dataset, **dataloader_params)
+    dataloader.dataloader_params = dataloader_params
+
+    maybe_setup_dataloader_adapter(dataloader=dataloader)
+    return dataloader
+
 
 def get_data_loader(config_name: str, dataset_cls: object, train: bool, dataset_params: Mapping = None, dataloader_params: Mapping = None) -> DataLoader:
     """

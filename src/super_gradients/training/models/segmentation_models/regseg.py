@@ -29,6 +29,23 @@ DEFAULT_REGSEG48_BACKBONE_PARAMS = {
     ]
 }
 
+# 1/4 decrease height
+DEFAULT_REGSEG48_T_BACKBONE_PARAMS = {
+    "stages": [
+        [[12, [1], 4, 2, 4]],
+        [[32, [1], 4, 2, 4], *[[32, [1], 4, 1, 4]] * 1],
+        [
+            [64, [1], 4, 2, 4],
+            [64, [1], 4, 1, 4],
+            [64, [1, 2], 4, 1, 4],
+            *[[64, [1, 4], 4, 1, 4]] * 1,
+            *[[64, [1, 14], 4, 1, 4]] * 1,
+            [80, [1, 14], 4, 1, 4],
+        ],
+    ]
+}
+
+
 DEFAULT_REGSEG53_BACKBONE_PARAMS = {
     "stages": [
         [[48, [1], 24, 2, 4], [48, [1], 24, 1, 4]],
@@ -46,11 +63,16 @@ DEFAULT_REGSEG53_BACKBONE_PARAMS = {
 
 DEFAULT_REGSEG48_DECODER_PARAMS = {"projection_out_channels": [8, 128, 128], "interpolation": "bilinear"}
 
+DEFAULT_REGSEG48_T_DECODER_PARAMS = {"projection_out_channels": [8, 128, 128], "interpolation": "bilinear"}
+
+
 DEFAULT_REGSEG53_DECODER_PARAMS = {"projection_out_channels": [16, 256, 256], "interpolation": "bilinear"}
 
 DEFAULT_REGSEG_HEAD_PARAMS = {"dropout": 0.0, "interpolation": "bilinear", "align_corners": False, "upsample_factor": 4}
 
 DEFAULT_REGSEG48_HEAD_PARAMS = {"mid_channels": 64, **DEFAULT_REGSEG_HEAD_PARAMS}
+
+DEFAULT_REGSEG48_T_HEAD_PARAMS = {"mid_channels": 64, **DEFAULT_REGSEG_HEAD_PARAMS}
 
 DEFAULT_REGSEG53_HEAD_PARAMS = {"mid_channels": 128, **DEFAULT_REGSEG_HEAD_PARAMS}
 
@@ -325,6 +347,21 @@ class RegSeg48(RegSeg):
         super().replace_head(new_num_classes, head_config)
 
 
+@register_model(Models.REGSEG48_T)
+class RegSeg48_T(RegSeg):
+    def __init__(self, arch_params: HpmStruct):
+        num_classes = get_param(arch_params, "num_classes")
+        stem = ConvBNReLU(in_channels=3, out_channels=32, kernel_size=3, stride=2, padding=1)
+        backbone = RegSegBackbone(in_channels=32, backbone_config=DEFAULT_REGSEG48_T_BACKBONE_PARAMS)
+        decoder = RegSegDecoder(backbone.get_backbone_output_number_of_channels(), DEFAULT_REGSEG48_T_DECODER_PARAMS)
+        head = RegSegHead(decoder.out_channels, num_classes, DEFAULT_REGSEG48_T_HEAD_PARAMS)
+        super().__init__(stem, backbone, decoder, head)
+
+    def replace_head(self, new_num_classes: int, head_config: dict = None):
+        head_config = head_config or DEFAULT_REGSEG48_HEAD_PARAMS
+        super().replace_head(new_num_classes, head_config)
+
+@register_model(Models.REGSEG53)
 class RegSeg53(RegSeg):
     def __init__(self, arch_params: HpmStruct):
         num_classes = get_param(arch_params, "num_classes")

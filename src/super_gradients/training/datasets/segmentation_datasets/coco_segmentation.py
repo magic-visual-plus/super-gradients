@@ -151,8 +151,10 @@ class CoCoSegmentationDataSet(SegmentationDataSet):
                 mask = self._generate_coco_segmentation_mask(coco_target_annotations, img_metadata["height"], img_metadata["width"])
 
                 # MAKE SURE THERE IS ENOUGH INPUT IN THE IMAGE (MORE THAN 1K PIXELS) AFTER SUB-CLASSES FILTRATION
-                if (mask > 0).sum() > 1000:
+                if (mask > 0).sum() > 10:
                     sub_dataset_image_ids.append(img_id)
+                else:
+                    print(f"Ignore image id: {img_id} because it has less than 10 pixels")
 
                 tbar.set_description("Processed images: {}/{}, generated {} qualified images".format(i, len(all_coco_image_ids), len(sub_dataset_image_ids)))
         print("Number of images in sub-dataset: ", len(sub_dataset_image_ids))

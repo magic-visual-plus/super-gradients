@@ -217,7 +217,7 @@ class Trainer:
 
         self.results_titles = default_results_titles
 
-        default_train_metrics, default_valid_metrics = MetricCollection([Accuracy(), Top5()]), MetricCollection([Accuracy(), Top5()])
+        default_train_metrics, default_valid_metrics = MetricCollection([Accuracy(task="binary"), Top5()]), MetricCollection([Accuracy(task="binary"), Top5()])
 
         self.train_metrics, self.valid_metrics = default_train_metrics, default_valid_metrics
 

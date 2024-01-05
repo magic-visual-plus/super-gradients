@@ -296,6 +296,9 @@ class Models:
     STDC2_SEG50 = "stdc2_seg50"
     STDC2_SEG75 = "stdc2_seg75"
     REGSEG48 = "regseg48"
+    # add regseg 48 tiny model
+    REGSEG48_T = "regseg48_t"
+    REGSEG53 = "regseg53"
     KD_MODULE = "kd_module"
     VIT_BASE = "vit_base"
     VIT_LARGE = "vit_large"

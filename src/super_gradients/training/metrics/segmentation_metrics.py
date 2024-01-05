@@ -7,11 +7,11 @@ from torchmetrics import Metric
 from typing import Optional, Tuple, List, Union
 from torchmetrics.utilities.distributed import reduce
 from abc import ABC, abstractmethod
-
+from torchmetrics.classification import BinaryJaccardIndex, MulticlassJaccardIndex
 
 from super_gradients.common.object_names import Metrics
 from super_gradients.common.registry.registry import register_metric
-
+from torchmetrics.functional.classification.jaccard import _jaccard_index_reduce
 
 def batch_pix_accuracy(predict: torch.Tensor, target: torch.Tensor) -> Tuple[float, float]:
     """Batch Pixel Accuracy
@@ -278,7 +278,7 @@ def _handle_multiple_ignored_inds(ignore_index: Union[int, List[int]], num_class
 
 
 @register_metric(Metrics.IOU)
-class IoU(torchmetrics.JaccardIndex):
+class IoU(MulticlassJaccardIndex):
     """
     IoU Metric
 
@@ -306,6 +306,7 @@ class IoU(torchmetrics.JaccardIndex):
         dist_sync_on_step: bool = False,
         ignore_index: Optional[Union[int, List[int]]] = None,
         reduction: str = "elementwise_mean",
+        task = 'multiclass',
         threshold: float = 0.5,
         metrics_args_prep_fn: Optional[AbstractMetricsArgsPrepFn] = None,
     ):
@@ -315,8 +316,7 @@ class IoU(torchmetrics.JaccardIndex):
         if isinstance(ignore_index, typing.Iterable) and reduction == "none":
             raise ValueError("passing multiple ignore indices ")
         ignore_index, ignore_index_list, num_classes, unfiltered_num_classes = _handle_multiple_ignored_inds(ignore_index, num_classes)
-
-        super().__init__(num_classes=num_classes, dist_sync_on_step=dist_sync_on_step, ignore_index=ignore_index, reduction=reduction, threshold=threshold)
+        super().__init__(task, dist_sync_on_step=dist_sync_on_step, ignore_index=ignore_index, reduction=reduction, threshold=threshold)
 
         self.unfiltered_num_classes = unfiltered_num_classes
         self.ignore_index_list = ignore_index_list
@@ -389,23 +389,26 @@ class Dice(torchmetrics.JaccardIndex):
 
 
 @register_metric(Metrics.BINARY_IOU)
-class BinaryIOU(IoU):
+class BinaryIOU(BinaryJaccardIndex):
     def __init__(
         self,
+        task="binary",
         dist_sync_on_step=True,
         ignore_index: Optional[int] = None,
         threshold: float = 0.5,
         metrics_args_prep_fn: Optional[AbstractMetricsArgsPrepFn] = None,
+        reduction="none"
     ):
-        metrics_args_prep_fn = metrics_args_prep_fn or PreprocessSegmentationMetricsArgs(apply_sigmoid=True)
-        super().__init__(
-            num_classes=2,
-            dist_sync_on_step=dist_sync_on_step,
-            ignore_index=ignore_index,
-            reduction="none",
-            threshold=threshold,
-            metrics_args_prep_fn=metrics_args_prep_fn,
-        )
+        num_classes = 2 
+        ignore_index, ignore_index_list, num_classes, unfiltered_num_classes = _handle_multiple_ignored_inds(ignore_index, num_classes)
+    
+        super().__init__(dist_sync_on_step=dist_sync_on_step, ignore_index=ignore_index, threshold=threshold)
+
+        self.unfiltered_num_classes = unfiltered_num_classes
+        self.ignore_index_list = ignore_index_list
+        self.metrics_args_prep_fn = metrics_args_prep_fn or PreprocessSegmentationMetricsArgs(apply_sigmoid=True)
+        self.greater_is_better = True
+
         self.greater_component_is_better = {
             "target_IOU": True,
             "background_IOU": True,
@@ -413,8 +416,17 @@ class BinaryIOU(IoU):
         }
         self.component_names = list(self.greater_component_is_better.keys())
 
+    def update(self, preds, target: torch.Tensor):
+        preds, target = self.metrics_args_prep_fn(preds, target)
+        if len(preds.shape) != len(target.shape):
+            target = target.unsqueeze(1)
+        if self.ignore_index_list is not None:
+            target = _map_ignored_inds(target, self.ignore_index_list, self.unfiltered_num_classes)
+            preds = _map_ignored_inds(preds, self.ignore_index_list, self.unfiltered_num_classes)
+        super().update(preds=preds, target=target)
+    
     def compute(self):
-        ious = super(BinaryIOU, self).compute()
+        ious = _jaccard_index_reduce(self.confmat, average="none")
         return {"target_IOU": ious[1], "background_IOU": ious[0], "mean_IOU": ious.mean()}
 
 
