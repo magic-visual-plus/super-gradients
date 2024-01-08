@@ -430,6 +430,53 @@ class BinaryIOU(BinaryJaccardIndex):
         return {"target_IOU": ious[1], "background_IOU": ious[0], "mean_IOU": ious.mean()}
 
 
+@register_metric(Metrics.BINARY_PRECISION_RECALL)
+class BinaryPrecisionRecall(BinaryJaccardIndex):
+    def __init__(
+        self,
+        task="binary",
+        dist_sync_on_step=True,
+        ignore_index: Optional[int] = None,
+        threshold: float = 0.5,
+        metrics_args_prep_fn: Optional[AbstractMetricsArgsPrepFn] = None,
+        reduction="none"
+    ):
+        num_classes = 2 
+        ignore_index, ignore_index_list, num_classes, unfiltered_num_classes = _handle_multiple_ignored_inds(ignore_index, num_classes)
+    
+        super().__init__(dist_sync_on_step=dist_sync_on_step, ignore_index=ignore_index, threshold=threshold)
+
+        self.unfiltered_num_classes = unfiltered_num_classes
+        self.ignore_index_list = ignore_index_list
+        self.metrics_args_prep_fn = metrics_args_prep_fn or PreprocessSegmentationMetricsArgs(apply_sigmoid=True)
+        # self.greater_is_better = True
+        self.component_names = ["precision", "recall", "accuracy", "f1_score", "fpr"]
+
+    def update(self, preds, target: torch.Tensor):
+        preds, target = self.metrics_args_prep_fn(preds, target)
+        if len(preds.shape) != len(target.shape):
+            target = target.unsqueeze(1)
+        if self.ignore_index_list is not None:
+            target = _map_ignored_inds(target, self.ignore_index_list, self.unfiltered_num_classes)
+            preds = _map_ignored_inds(preds, self.ignore_index_list, self.unfiltered_num_classes)
+        super().update(preds=preds, target=target)
+    
+    def compute(self):
+        print(f'self.confmat: {self.confmat}')
+        eps = 1e-10
+        conf_matrix = self.confmat.to('cpu').numpy()
+        TN = conf_matrix[0][0]
+        FN = conf_matrix[0][1]
+        FP = conf_matrix[1][0]
+        TP = conf_matrix[1][1]
+        recall = TP / (TP + FN + eps)
+        precision = TP / (TP + FP + eps)
+        accuracy = (TP + TN) / (TP + TN + FP + FN + eps)
+        f1_score = (2 * recall * precision) / (recall + precision + eps)
+        fpr = FP / (FP + TN + eps)
+        return {"precision": precision, "recall": recall, "accuracy": accuracy, "f1_score": f1_score, "fpr": fpr}
+
+
 @register_metric(Metrics.BINARY_DICE)
 class BinaryDice(Dice):
     def __init__(

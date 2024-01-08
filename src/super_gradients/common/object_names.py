@@ -44,6 +44,7 @@ class Metrics:
     DepthMSE = "DepthMSE"
     DepthRMSE = "DepthRMSE"
     DepthMSLE = "DepthMSLE"
+    BINARY_PRECISION_RECALL = "BinaryPrecisionRecall"
 
 
 class Transforms:
